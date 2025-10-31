@@ -8,22 +8,20 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     ports: ["9000:9000", "9001:9001"]
 
-  nessie:
-    image: ghcr.io/projectnessie/nessie:latest
-    container_name: nessie
-    depends_on: [minio]
-    ports: ["19120:19120"]
-    environment:
-      QUARKUS_HTTP_PORT: 19120
-      nessie.iceberg.rest.enabled: "true"
-      nessie.version.store.type: INMEMORY
-      nessie.catalog.service.default-warehouse: s3://lake/warehouse
-      nessie.catalog.service.s3.endpoint: http://minio:9000
-      nessie.catalog.service.s3.region: us-east-1
-      nessie.catalog.service.s3.accessKeyId: minioadmin
-      nessie.catalog.service.s3.secretAccessKey: minioadmin
-      nessie.catalog.service.s3.pathStyleAccess: "true"
-      nessie.catalog.service.s3.sslEnabled: "false"
+nessie:
+  image: ghcr.io/projectnessie/nessie:latest
+  container_name: nessie
+  depends_on: [minio]
+  ports: ["19120:19120"]
+  environment:
+    QUARKUS_HTTP_PORT: "19120"
+    QUARKUS_HTTP_HOST: "0.0.0.0"
+
+    # Use an in-memory version store (correct spelling!)
+    NESSIE_VERSION_STORE_TYPE: "in-memory"
+
+    # Turn on Iceberg REST
+    NESSIE_ICEBERG_REST_ENABLED: "true"
 
   mc:
     image: minio/mc:latest
