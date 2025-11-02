@@ -4,9 +4,7 @@ services:
   minio:
     image: minio/minio:latest
     command: server --console-address ":9001" /data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    ports: ["9000:9000", "9001:9001"]
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -20,20 +18,22 @@ services:
 
   nessie:
     image: ghcr.io/projectnessie/nessie:latest
-    ports:
-      - "19120:19120"
+    ports: ["19120:19120"]
     environment:
       QUARKUS_HTTP_PORT: 19120
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      AWS_REGION: us-east-1
-      AWS_ENDPOINT_URL_S3: http://minio:9000
-      AWS_S3_FORCE_PATH_STYLE: "true"
+      NESSIE_CATALOG_DEFAULT_WAREHOUSE: local
+      NESSIE_CATALOG_WAREHOUSES__local__LOCATION: s3://lake/warehouse
+      NESSIE_CATALOG_WAREHOUSES__local__S3__ENDPOINT: http://minio:9000
+      NESSIE_CATALOG_WAREHOUSES__local__S3__REGION: us-east-1
+      NESSIE_CATALOG_WAREHOUSES__local__S3__ACCESS_KEY_ID: minioadmin
+      NESSIE_CATALOG_WAREHOUSES__local__S3__SECRET_ACCESS_KEY: minioadmin
+      NESSIE_CATALOG_WAREHOUSES__local__S3__PATH_STYLE_ACCESS: "true"
+      NESSIE_CATALOG_WAREHOUSES__local__S3__SSL_ENABLED: "false"
     depends_on:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:19120/iceberg/v1/config"]
+      test: ["CMD", "curl", "-sf", "http://localhost:19120/iceberg/v1/config?warehouse=local"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -47,9 +47,9 @@ services:
     command: |
       set -e
       mc alias set local http://minio:9000 minioadmin minioadmin
+      until mc admin info local >/dev/null 2>&1; do sleep 1; done
       mc mb -p local/lake || true
-      echo "Bucket 'lake' ensured"
-      sleep infinity
+      echo ok | mc pipe local/lake/warehouse/.keep || true
 
 volumes:
   minio-data:
