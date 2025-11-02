@@ -1,34 +1,56 @@
+version: "3.9"
+
 services:
   minio:
     image: minio/minio:latest
-    container_name: minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+    command: server --console-address ":9001" /data
     ports:
       - "9000:9000"
       - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - minio-data:/data
 
   nessie:
     image: ghcr.io/projectnessie/nessie:latest
-    container_name: nessie
-    depends_on: [minio]
     ports:
       - "19120:19120"
     environment:
-      QUARKUS_HTTP_PORT: "19120"
-      QUARKUS_HTTP_HOST: "0.0.0.0"
-      # Correct value + env var style:
-      NESSIE_VERSION_STORE_TYPE: "in-memory"
-      NESSIE_ICEBERG_REST_ENABLED: "true"
+      QUARKUS_HTTP_PORT: 19120
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      AWS_S3_FORCE_PATH_STYLE: "true"
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:19120/iceberg/v1/config"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   mc:
     image: minio/mc:latest
-    container_name: pyduck-iceberg-mc-1
-    depends_on: [minio]
-    entrypoint: ["/bin/sh","-c"]
-    command: >
-      until (/usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin) do sleep 1; done &&
-      /usr/bin/mc mb --ignore-existing local/lake
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      set -e
+      mc alias set local http://minio:9000 minioadmin minioadmin
+      mc mb -p local/lake || true
+      echo "Bucket 'lake' ensured"
+      sleep infinity
+
+volumes:
+  minio-data:
 

@@ -10,8 +10,10 @@ WAREHOUSE = "s3://lake/warehouse"
 NESSIE_API = "http://localhost:19120/api/v1"
 
 def main():
-    con = duckdb.connect()
-    con.execute("SET allow_unsigned_extensions=true;")
+    # changed: set allow_unsigned_extensions at startup
+    con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
+    # con.execute("SET allow_unsigned_extensions=true;")  # removed
+
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute("INSTALL iceberg; LOAD iceberg;")
     con.execute(f"SET s3_endpoint='{S3_ENDPOINT}';")
@@ -20,13 +22,12 @@ def main():
     con.execute(f"SET s3_secret_access_key='{S3_SECRET_KEY}';")
     con.execute("SET s3_use_ssl=false;")
 
-    # Attach via native Nessie catalog (avoids REST /config 500s)
+    # Attach via native Nessie catalog
     con.execute(f"""
     ATTACH '{WAREHOUSE}' AS nessie_catalog (
       TYPE iceberg,
-      CATALOG 'nessie',
-      ENDPOINT '{NESSIE_API}',
-      REF 'main'
+      ENDPOINT '{NESSIE_ENDPOINT}',  -- http://localhost:19120/iceberg
+      AUTHORIZATION_TYPE 'none'
     );
     """)
     con.sql("CREATE SCHEMA IF NOT EXISTS nessie_catalog.analytics;")
