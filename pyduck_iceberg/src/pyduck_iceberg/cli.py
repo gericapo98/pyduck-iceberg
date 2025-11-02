@@ -6,8 +6,12 @@ S3_SECRET_KEY = "minioadmin"
 NESSIE_ENDPOINT = "http://localhost:19120/iceberg"
 WAREHOUSE = "s3://lake/warehouse"
 
+# Use Nessie V1 API for the native Nessie catalog (not the Iceberg REST endpoint)
+NESSIE_API = "http://localhost:19120/api/v1"
+
 def main():
     con = duckdb.connect()
+    con.execute("SET allow_unsigned_extensions=true;")
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute("INSTALL iceberg; LOAD iceberg;")
     con.execute(f"SET s3_endpoint='{S3_ENDPOINT}';")
@@ -15,11 +19,14 @@ def main():
     con.execute(f"SET s3_access_key_id='{S3_ACCESS_KEY}';")
     con.execute(f"SET s3_secret_access_key='{S3_SECRET_KEY}';")
     con.execute("SET s3_use_ssl=false;")
+
+    # Attach via native Nessie catalog (avoids REST /config 500s)
     con.execute(f"""
     ATTACH '{WAREHOUSE}' AS nessie_catalog (
       TYPE iceberg,
-      ENDPOINT '{NESSIE_ENDPOINT}',
-      AUTHORIZATION_TYPE 'none'
+      CATALOG 'nessie',
+      ENDPOINT '{NESSIE_API}',
+      REF 'main'
     );
     """)
     con.sql("CREATE SCHEMA IF NOT EXISTS nessie_catalog.analytics;")

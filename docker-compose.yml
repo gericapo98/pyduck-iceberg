@@ -6,27 +6,29 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    ports: ["9000:9000", "9001:9001"]
+    ports:
+      - "9000:9000"
+      - "9001:9001"
 
-nessie:
-  image: ghcr.io/projectnessie/nessie:latest
-  container_name: nessie
-  depends_on: [minio]
-  ports: ["19120:19120"]
-  environment:
-    QUARKUS_HTTP_PORT: "19120"
-    QUARKUS_HTTP_HOST: "0.0.0.0"
-
-    # Use an in-memory version store (correct spelling!)
-    NESSIE_VERSION_STORE_TYPE: "in-memory"
-
-    # Turn on Iceberg REST
-    NESSIE_ICEBERG_REST_ENABLED: "true"
+  nessie:
+    image: ghcr.io/projectnessie/nessie:latest
+    container_name: nessie
+    depends_on: [minio]
+    ports:
+      - "19120:19120"
+    environment:
+      QUARKUS_HTTP_PORT: "19120"
+      QUARKUS_HTTP_HOST: "0.0.0.0"
+      # Correct value + env var style:
+      NESSIE_VERSION_STORE_TYPE: "in-memory"
+      NESSIE_ICEBERG_REST_ENABLED: "true"
 
   mc:
     image: minio/mc:latest
+    container_name: pyduck-iceberg-mc-1
     depends_on: [minio]
     entrypoint: ["/bin/sh","-c"]
     command: >
-      "until (/usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin) do sleep 1; done &&
-       /usr/bin/mc mb --ignore-existing local/lake"
+      until (/usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin) do sleep 1; done &&
+      /usr/bin/mc mb --ignore-existing local/lake
+
