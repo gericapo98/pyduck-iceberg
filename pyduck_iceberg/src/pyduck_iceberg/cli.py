@@ -2,7 +2,7 @@ import time
 import json
 import duckdb
 from urllib.request import urlopen, Request
-from urllib.error import URLError, HTTPError
+from urllib.error import HTTPError
 from urllib.parse import quote_plus, quote
 
 S3_ENDPOINT = "http://localhost:9000"
@@ -10,6 +10,7 @@ S3_ACCESS_KEY = "minioadmin"
 S3_SECRET_KEY = "minioadmin"
 NESSIE_ENDPOINT = "http://localhost:19120/iceberg"
 WAREHOUSE = "local"  # named warehouse in Nessie
+BRANCH = "main"
 
 def wait_for_iceberg(timeout=60):
     url = f"{NESSIE_ENDPOINT}/v1/config?warehouse={quote_plus(WAREHOUSE)}"
@@ -17,7 +18,7 @@ def wait_for_iceberg(timeout=60):
     last_err = None
     while time.time() < deadline:
         try:
-            with urlopen(url, timeout=2) as r:
+            with urlopen(url, timeout=3) as r:
                 if r.status == 200:
                     return
         except Exception as e:
@@ -26,8 +27,7 @@ def wait_for_iceberg(timeout=60):
     raise RuntimeError(f"Iceberg REST not ready: {last_err}")
 
 def ensure_namespace(ns: str):
-    prefix = quote(f"main|{WAREHOUSE}", safe="")
-    # HEAD: exists?
+    prefix = quote(f"{BRANCH}|{WAREHOUSE}", safe="")
     head = Request(f"{NESSIE_ENDPOINT}/v1/{prefix}/namespaces/{quote(ns, safe='')}", method="HEAD")
     try:
         with urlopen(head, timeout=5) as r:
@@ -36,7 +36,6 @@ def ensure_namespace(ns: str):
     except HTTPError as e:
         if e.code != 404:
             raise
-    # POST: create
     create = Request(
         f"{NESSIE_ENDPOINT}/v1/{prefix}/namespaces",
         data=json.dumps({"namespace": [ns]}).encode("utf-8"),
@@ -69,7 +68,7 @@ def main():
 
     ensure_namespace("analytics")
 
-    # Note: no 'USING iceberg' when creating in an Iceberg catalog
+    # When using attached Iceberg catalog, omit 'USING iceberg'
     con.sql("""
       CREATE TABLE IF NOT EXISTS nessie_catalog.analytics.users (
         id BIGINT, country VARCHAR, ts TIMESTAMP

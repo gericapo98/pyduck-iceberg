@@ -49,6 +49,7 @@ services:
       mc alias set local http://minio:9000 minioadmin minioadmin
       until mc admin info local >/dev/null 2>&1; do sleep 1; done
       mc mb -p local/lake || true
+      # ensure warehouse prefix exists
       echo ok | mc pipe local/lake/warehouse/.keep || true
 
 volumes:
